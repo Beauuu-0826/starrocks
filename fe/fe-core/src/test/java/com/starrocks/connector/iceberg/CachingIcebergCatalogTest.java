@@ -218,6 +218,38 @@ public class CachingIcebergCatalogTest {
     }
 
     @Test
+    public void testPartitionCacheCountedInEstimateSize(@Mocked IcebergCatalog icebergCatalog) {
+        PartitionSpec spec = Mockito.mock(PartitionSpec.class);
+        Mockito.when(spec.isUnpartitioned()).thenReturn(false);
+        Table nativeTable = createBaseTableWithManifests(1, 0, spec);
+        Map<String, Partition> partitionMap = new HashMap<>();
+        for (int i = 0; i < 1000; i++) {
+            partitionMap.put("dt=part-" + i, new Partition(1234L, 1L));
+        }
+        new Expectations() {
+            {
+                icebergCatalog.getTable((ConnectContext) any, "db", "test");
+                result = nativeTable;
+                minTimes = 0;
+                icebergCatalog.getPartitions((IcebergTable) any, anyLong, null);
+                result = partitionMap;
+                minTimes = 0;
+            }
+        };
+        CachingIcebergCatalog cachingIcebergCatalog = new CachingIcebergCatalog(CATALOG_NAME, icebergCatalog,
+                DEFAULT_CATALOG_PROPERTIES, Executors.newSingleThreadExecutor());
+        IcebergTable table = IcebergTable.builder().setSrTableName("test")
+                .setCatalogDBName("db").setCatalogTableName("test").setNativeTable(nativeTable).build();
+
+        long before = cachingIcebergCatalog.estimateSize();
+        cachingIcebergCatalog.getPartitions(table, 1L, null);
+        long after = cachingIcebergCatalog.estimateSize();
+        // partitionCache used to be excluded from estimateSize, so a full partition map was invisible.
+        Assertions.assertTrue(after > before,
+                "partitionCache must be counted in estimateSize; before=" + before + " after=" + after);
+    }
+
+    @Test
     public void testGetDB(@Mocked IcebergCatalog icebergCatalog, @Mocked Database db) {
         new Expectations() {
             {
@@ -388,7 +420,7 @@ public class CachingIcebergCatalogTest {
                                                          @Mocked IcebergCatalogProperties props,
                                                          @Mocked ConnectContext ctx) throws Exception {
         Table nativeTable1 = createBaseTableWithManifests(1, 1);
-        Table nativeTable2 = createBaseTableWithManifests(1, 1);
+        createBaseTableWithManifests(1, 1);
         new Expectations() {
             {
                 props.isEnableIcebergMetadataCache(); 
@@ -410,11 +442,9 @@ public class CachingIcebergCatalogTest {
 
         ExecutorService es = Executors.newFixedThreadPool(5);
         try {
-            CachingIcebergCatalog catalog =
-                    new CachingIcebergCatalog("iceberg0", delegate, props, es);
-
-            org.apache.iceberg.Table r1 = catalog.getTable(ctx, "db1", "t1");
-            org.apache.iceberg.Table r2 = catalog.getTable(ctx, "db1", "t1");
+            CachingIcebergCatalog catalog = new CachingIcebergCatalog("iceberg0", delegate, props, es);
+            catalog.getTable(ctx, "db1", "t1");
+            catalog.getTable(ctx, "db1", "t1");
 
             new Verifications() {
                 {
@@ -661,7 +691,7 @@ public class CachingIcebergCatalogTest {
         config.put(IcebergCatalogProperties.ICEBERG_TABLE_CACHE_MEMORY_SIZE_RATIO, "1");
         IcebergCatalogProperties icebergProperties = new IcebergCatalogProperties(config);
         ExecutorService exectorCatalog = Executors.newSingleThreadExecutor();
-        ExecutorService exector = Executors.newSingleThreadExecutor();
+        Executors.newSingleThreadExecutor();
         
 
         CachingIcebergCatalog catalog = new CachingIcebergCatalog("test_catalog", delegate, icebergProperties, exectorCatalog);
@@ -797,8 +827,8 @@ public class CachingIcebergCatalogTest {
         LoadingCache<IcebergTableName, Table> tables = Deencapsulation.getField(catalog, "tables");
         Table tmp1 = delegate.getTable(ctx, dbName, tblName);
         Table tmp2 = delegate.getTable(ctx, dbName, tblName);
-        Table tmp3 = delegate.getTable(ctx, dbName, tblName);
-        
+        delegate.getTable(ctx, dbName, tblName);
+
         System.out.println("===== cache test =====");
         catalog.getTable(ctx, dbName, tblName);
         catalog.refreshTable(dbName, tblName, ctx, null);

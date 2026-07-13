@@ -19,13 +19,12 @@ endif()
 
 set(EXEC_RUNTIME_TEST_FILES
     ${BE_TEST_MACOS_LINK_STUBS}
+    ${BE_TEST_JNI_ENV_STUB}
     pipeline_driver_exec_runtime_test.cpp
     pipeline_event_scheduler_exec_runtime_test.cpp
     pipeline_execution_group_exec_runtime_test.cpp
     pipeline_builder_context_exec_runtime_test.cpp
     pipeline_fragment_context_exec_runtime_test.cpp
-    pipeline_fragment_runtime_state_exec_runtime_test.cpp
-    pipeline_query_runtime_state_exec_runtime_test.cpp
     pipeline/query_context_manger_test.cpp
 )
 
@@ -63,6 +62,7 @@ target_link_libraries(exec_runtime_test ${EXEC_RUNTIME_TEST_LINK_LIBS} gtest_mai
 
 set(SCHEMA_SCANNER_CORE_TEST_FILES
     ${BE_TEST_MACOS_LINK_STUBS}
+    ${BE_TEST_JNI_ENV_STUB}
     schema_scanner/schema_scanner_core_test.cpp
 )
 
@@ -85,6 +85,7 @@ set(SCHEMA_SCANNER_CORE_TEST_LINK_LIBS
     gtest
     ${WL_END_GROUP}
 )
+list(REMOVE_ITEM SCHEMA_SCANNER_CORE_TEST_LINK_LIBS arrow_testing)
 
 add_library(starrocks_schema_scanner_core_test_objs OBJECT ${SCHEMA_SCANNER_CORE_TEST_FILES})
 target_link_libraries(starrocks_schema_scanner_core_test_objs PRIVATE StarRocksPCH)
@@ -94,6 +95,7 @@ target_link_libraries(schema_scanner_core_test ${SCHEMA_SCANNER_CORE_TEST_LINK_L
 
 set(EXEC_SCHEMA_SCANNERS_TEST_FILES
     ${BE_TEST_MACOS_LINK_STUBS}
+    ${BE_TEST_JNI_ENV_STUB}
     schema_scanner/exec_schema_scanners_test.cpp
 )
 
@@ -125,6 +127,7 @@ target_link_libraries(exec_schema_scanners_test ${EXEC_SCHEMA_SCANNERS_TEST_LINK
 
 set(JOIN_CORE_TEST_FILES
     ${BE_TEST_MACOS_LINK_STUBS}
+    ${BE_TEST_JNI_ENV_STUB}
     join_hash_map_test.cpp
 )
 

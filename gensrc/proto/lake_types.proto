@@ -390,6 +390,15 @@ message TxnLogPB {
         repeated FileMetaPB dels_meta = 19;
         // Canonical per-rewrite-segment metadata, superseding deprecated_rewrite_segments.
         repeated FileMetaPB rewrite_segments_meta = 20;
+        // Parallel to `dels_meta` (index by del_id): the in-rowset segment index each delete
+        // logically follows, so its rssid is `rowset_id + op_offset`. Used to preserve the
+        // in-transaction upsert/delete order. A UINT32_MAX entry means "not recorded" (e.g.
+        // spill / concurrent flush); readers then fall back to the max segment index (legacy
+        // "all deletes after all upserts"). Empty (size != dels_meta_size) means no del carries
+        // an offset -- the downgrade-safe default until the cluster is fully upgraded
+        // (see config::lake_enable_pk_preserve_txn_delete_order). The persisted per-del order
+        // lives on DelfileWithRowsetId.op_offset, derived from this at apply/persist time.
+        repeated uint32 del_op_offsets = 21;
     }
 
     message OpCompaction {
@@ -575,6 +584,14 @@ message TxnInfoPB {
     // anchored as op_schema_change@W. W == 1 means the base partition was empty at the watershed
     // (PARTITION_INIT_VERSION == 1), so there is no source op_write and BE synthesizes an empty one.
     optional int64 shadow_rewrite_alter_version = 13;
+    // TXN_SHADOW_REWRITE flip publish: true when the rewrite produced no source op_write because the base
+    // partition was empty at the watershed. FE sets it from the rewrite txn loading zero rows (loadedRows
+    // == 0); it does NOT consult tablet commit infos, which are reset to null at the VISIBLE finish before
+    // FE reads this (see the rewriteSourceEmpty comment in LakeOnlineRewriteJobBase).
+    // When true, BE synthesizes an empty op_schema_change@W for ANY W (no source load), generalizing the
+    // W == 1 empty fast-path to a partition that is empty at W > 1 (e.g. a repeat online rewrite of an
+    // empty range partition). When false, the source op_write MUST exist and is loaded as before.
+    optional bool shadow_rewrite_source_empty = 14;
 }
 
 message SplittingTabletInfoPB {

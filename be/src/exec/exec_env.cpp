@@ -49,13 +49,13 @@
 #include "compute_env/pipeline/driver_limiter.h"
 #include "compute_env/workgroup/scan_executor.h"
 #include "compute_env/workgroup/work_group_manager.h"
-#include "connector/builtin_connector_registry.h"
-#include "connector/connector_registry.h"
-#include "connector/connector_sink_executor.h"
+#include "connector/common/connector_sink_executor.h"
 #include "exec/batch_write/batch_write_mgr.h"
 #include "exec/lookup_stream_mgr.h"
 #include "exec/pipeline/query_context.h"
 #include "exec/runtime/query_context_manager.h"
+#include "exec/schema_scanner_factory.h"
+#include "exec/schema_scanner_factory_adapter.h"
 #include "exec/stream_load/stream_load_executor.h"
 #include "exec/stream_load/transaction_mgr.h"
 #include "exec_primitive/pipeline/primitives/driver_executor.h"
@@ -86,10 +86,17 @@ ExecEnv* ExecEnv::GetInstance() {
     return &s_exec_env;
 }
 
-ExecEnv::ExecEnv() : _runtime_env(RuntimeEnv::GetInstance()) {
+ExecEnv::ExecEnv() : ExecEnv(nullptr) {}
+
+ExecEnv::ExecEnv(std::unique_ptr<SchemaScannerFactory> schema_scanner_factory)
+        : _runtime_env(RuntimeEnv::GetInstance()), _schema_scanner_factory(std::move(schema_scanner_factory)) {
     _refresh_service_contexts();
 }
 ExecEnv::~ExecEnv() = default;
+
+const SchemaScannerFactory* resolve_schema_scanner_factory(const ExecEnv* exec_env) {
+    return exec_env == nullptr ? nullptr : exec_env->schema_scanner_factory();
+}
 
 void ExecEnv::_refresh_service_contexts() {
     auto* runtime_env = _runtime_env;
@@ -180,7 +187,8 @@ void ExecEnv::set_runtime_filter_services(RuntimeFilterSender* sender, RuntimeFi
     _refresh_service_contexts();
 }
 
-Status ExecEnv::init(ProcessMetricsRegistry* process_metrics_registry, RuntimeEnv* runtime_env) {
+Status ExecEnv::init(ProcessMetricsRegistry* process_metrics_registry, RuntimeEnv* runtime_env,
+                     std::unique_ptr<SchemaScannerFactory> schema_scanner_factory) {
     DCHECK(process_metrics_registry != nullptr);
     DCHECK(runtime_env != nullptr);
     _runtime_env = runtime_env;
@@ -193,7 +201,9 @@ Status ExecEnv::init(ProcessMetricsRegistry* process_metrics_registry, RuntimeEn
     if (_compute_env == nullptr) {
         return Status::InternalError("ComputeEnv is not attached");
     }
-    RETURN_IF_ERROR(connector::install_builtin_connectors(connector::ConnectorRegistry::default_instance()));
+    if (schema_scanner_factory != nullptr) {
+        _schema_scanner_factory = std::move(schema_scanner_factory);
+    }
     _process_metrics_registry = process_metrics_registry;
     auto* process_metrics = process_metrics_registry->root_registry();
     _table_metrics_mgr = process_metrics_registry->table_metrics_mgr();
@@ -236,6 +246,10 @@ Status ExecEnv::init(ProcessMetricsRegistry* process_metrics_registry, RuntimeEn
     _refresh_service_contexts();
 
     return Status::OK();
+}
+
+Status ExecEnv::init(ProcessMetricsRegistry* process_metrics_registry, RuntimeEnv* runtime_env) {
+    return init(process_metrics_registry, runtime_env, nullptr);
 }
 
 DataStreamMgr* ExecEnv::stream_mgr() {
@@ -326,6 +340,7 @@ void ExecEnv::destroy() {
     _table_metrics_mgr = nullptr;
     _process_metrics_registry = nullptr;
     _compute_env = nullptr;
+    _schema_scanner_factory.reset();
     _refresh_service_contexts();
 }
 

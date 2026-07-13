@@ -640,6 +640,16 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static int edit_log_roll_num = 50000;
 
+    /**
+     * Leader FE will also roll the edit log once the total size of meta journals written since
+     * the last roll exceeds this value, in bytes. This bounds the replay backlog between two
+     * checkpoints by size even when individual journal entries are large (e.g. materialized
+     * view refresh logs whose size is proportional to the number of base table partitions).
+     * 0 (default) disables the size-based trigger; *edit_log_roll_num* always applies.
+     */
+    @ConfField(mutable = true)
+    public static long edit_log_roll_bytes = 0;
+
     @ConfField(mutable = true)
     public static int edit_log_write_slow_log_threshold_ms = 2000;
 
@@ -2492,6 +2502,20 @@ public class Config extends ConfigBase {
             "will not be recorded during query optimization")
     public static boolean enable_predicate_columns_collection = true;
 
+    @ConfField(mutable = true, comment = "Enable predicate columns collection for external (non-native) tables. " +
+            "If disabled, external table predicate columns will not be recorded during query optimization")
+    public static boolean enable_external_predicate_columns_collection = true;
+
+    @ConfField(mutable = true, comment = "The TTL of external table predicate columns in hours; entries older " +
+            "than this are removed by vacuum. A negative value (e.g. -1) disables vacuum. Defaults to a week " +
+            "since external table ANALYZE runs far less frequently than internal tables, so a short TTL " +
+            "(like the internal table's 24h default) would evict usage info between two collections.")
+    public static long statistic_external_predicate_columns_ttl_hours = 168;
+
+    @ConfField(mutable = true, comment = "The TTL of the in-memory cache used to serve external predicate " +
+            "columns queries (e.g. from auto ANALYZE column selection), in seconds")
+    public static long statistic_external_predicate_columns_cache_ttl_sec = 300;
+
     @ConfField(mutable = true, comment = "If enabled, FE will always collect optimizer timer traces during plan " +
             "generation and dump them to logs when plan generation fails (e.g. CBO timeout) for diagnosis.")
     public static boolean enable_dump_optimizer_trace_on_error = false;
@@ -3391,6 +3415,16 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true)
     public static boolean azure_use_native_sdk = true;
+
+    /**
+     * Whether to use the native AWS S3 SDK to resolve glob paths in the files() table function for
+     * S3 and S3-compatible object stores (s3/s3a/s3n/oss/cosn/ks3/obs/tos). Default is true. When true, the
+     * longest literal prefix of a wildcard is pushed down to S3 ListObjectsV2 instead of listing the
+     * whole parent prefix via Hadoop globStatus, which is much faster when the prefix holds many
+     * objects but few match. Set to false to fall back to the Hadoop globStatus path.
+     */
+    @ConfField(mutable = true)
+    public static boolean s3_use_native_sdk_for_glob = true;
 
     @ConfField(mutable = true)
     public static boolean enable_experimental_rowstore = false;

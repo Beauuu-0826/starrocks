@@ -6,23 +6,10 @@ set(EXEC_FILES
         ./agent/heartbeat_server_test.cpp
         ./agent/resource_group_usage_recorder_test.cpp
         ./common/uri_test.cpp
-        ./connector/file_scan_metrics_test.cpp
-        ./connector/file_connector_rejected_record_test.cpp
-        ./connector/hive_connector_test.cpp
-        ./connector/deletion_vector/deletion_vector_test.cpp
-        ./connector_sink/hive_chunk_sink_test.cpp
-        ./connector_sink/iceberg_chunk_sink_test.cpp
-        ./connector_sink/file_chunk_sink_test.cpp
-        ./connector_sink/partition_chunk_writer_test.cpp
-        ./connector_sink/async_flush_stream_poller_test.cpp
         ./connector_sink/iceberg_table_sink_test.cpp
-        ./connector_sink/iceberg_delete_sink_test.cpp
-        ./connector_sink/iceberg_row_delta_sink_test.cpp
-        ./connector_sink/sink_memory_manager_test.cpp
         ./platform/fs_broker_test.cpp
         ./exec/data_sinks/range_router_test.cpp
         ./exec/plain_text_builder_test.cpp
-        ./exec/paimon/paimon_delete_file_builder_test.cpp
         ./exec/pipeline/schedule/observer_test.cpp
         ./compute_env/spill/spill_observable_test.cpp
         ./exec/pipeline/spill_process_channel_test.cpp
@@ -77,14 +64,10 @@ set(EXEC_FILES
         ./exec/connector_scan_node_test.cpp
         ./exec/catalog_scan_metrics_test.cpp
         ./exec/exec_factory_test.cpp
-        ./exec/file_scan_node_rejected_record_test.cpp
         ./exec/file_scan_node_test.cpp
         ./exec/hdfs_scan_node_test.cpp
-        ./exec/json_parser_test.cpp
         ./exec/lake_meta_scanner_test.cpp
         ./exec/data_sinks/multi_olap_table_sink_test.cpp
-        ./exec/parquet_schema_builder_test.cpp
-        ./exec/query_scan_metrics_test.cpp
         ./exec/repeat_node_test.cpp
         ./exec/sorting_test.cpp
         ./exec/data_sinks/tablet_sink_index_channel_test.cpp
@@ -93,17 +76,6 @@ set(EXEC_FILES
         ./exec/table_function_node_test.cpp
         ./exec/olap_scan_prepare_test.cpp
         ./exec/olap_scan_keys_test.cpp
-        ./exec/file_scanner/avro_cpp_scanner_test.cpp
-        ./exec/file_scanner/avro_scanner_test.cpp
-        ./exec/file_scanner/csv_scanner_test.cpp
-        ./exec/file_scanner/file_scanner_test.cpp
-        ./exec/file_scanner/json_scanner_test.cpp
-        ./exec/file_scanner/orc_scanner_test.cpp
-        ./exec/file_scanner/parquet_scanner_test.cpp
-        ./exec/hdfs_scanner/cache_select_scanner_test.cpp
-        ./exec/hdfs_scanner/hdfs_scanner_json_test.cpp
-        ./exec/hdfs_scanner/hdfs_scanner_test.cpp
-        ./exec/hdfs_scanner/jni_scanner_test.cpp
         ./exprs/agg/data_sketch/ds_theta_test.cpp
         ./exprs/agg/json_each_test.cpp
         ./exprs/agg/aggregate_test.cpp
@@ -117,7 +89,9 @@ set(EXEC_FILES
         ./exprs/runtime_filter_test.cpp
         ./exprs/variant_functions_test.cpp
         ./exprs/table_function/test_list_rowsets.cpp
+        ./exprs/table_function/java_udtf_factory_test.cpp
         ./exprs/dict_expr_test.cpp
+        ./exprs/dict_functions_test.cpp
         ./formats/json/binary_column_test.cpp
         ./formats/json/numeric_column_test.cpp
         ./formats/json/nullable_column_test.cpp
@@ -214,6 +188,10 @@ function(target_link_be_test_cxa_throw_wrap TEST_TARGET)
     target_link_libraries(${TEST_TARGET} be_test_cxa_throw_wrap)
 endfunction()
 
+# Weak getJNIEnv fallback shared by the focused test binaries that link Runtime
+# but not libhdfs (which provides the real symbol). See base/jni_env_stub.cpp.
+set(BE_TEST_JNI_ENV_STUB ${CMAKE_CURRENT_SOURCE_DIR}/base/jni_env_stub.cpp)
+
 add_subdirectory(base)
 add_subdirectory(common)
 add_subdirectory(column)
@@ -260,21 +238,20 @@ else()
 endif ()
 add_executable(starrocks_test test_main.cpp $<TARGET_OBJECTS:starrocks_test_objs> ${TEST_EXTRA_SOURCES})
 
-TARGET_LINK_LIBRARIES(starrocks_test ServiceBE Service ${TEST_LINK_LIBS})
+set(STARROCKS_TEST_LINK_LIBS ${TEST_LINK_LIBS})
+list(REMOVE_ITEM STARROCKS_TEST_LINK_LIBS arrow_testing)
+TARGET_LINK_LIBRARIES(starrocks_test ServiceBE Service SchemaScannerBuiltin ${STARROCKS_TEST_LINK_LIBS})
 STARROCKS_FORCE_LOAD_LIBS(starrocks_test ${EXPR_FORCE_LOAD_LIBS})
 
 
 SET(DW_TEST_FILES
-    ./storage/aggregate_iterator_test.cpp
     ./storage/base_compaction_test.cpp
     ./storage/binlog_builder_test.cpp
     ./storage/binlog_file_test.cpp
     ./storage/binlog_manager_test.cpp
     ./storage/binlog_reader_test.cpp
     ./storage/binlog_test_base.cpp
-    ./storage/chunk_aggregator_test.cpp
     ./storage/chunk_helper_test.cpp
-    ./storage/column_aggregator_test.cpp
     ./storage/column_predicate_inverted_index_fallback_test.cpp
     ./storage/compaction_manager_test.cpp
     ./storage/compaction_parallelization_test.cpp
@@ -312,14 +289,13 @@ SET(DW_TEST_FILES
     ./storage/lake/segment_pk_iterator_test.cpp
     ./storage/lake/delta_writer_test.cpp
     ./storage/lake/filenames_test.cpp
-    ./storage/lake/lake_data_source_test.cpp
     ./storage/lake/shared_data_vector_index_test.cpp
     ./storage/lake/vector_index_build_task_test.cpp
     ./storage/lake/lake_delvec_loader_test.cpp
     ./storage/lake/lake_meta_reader_test.cpp
     ./storage/lake/lake_persistent_index_test.cpp
     ./storage/lake/lake_primary_key_consistency_test.cpp
-    ./storage/lake/lake_scan_node_test.cpp
+    ./exec/lake_connector_scan_node_test.cpp
     ./storage/lake/metacache_test.cpp
     ./storage/lake/meta_file_test.cpp
     ./storage/lake/lake_proto_normalizer_test.cpp
@@ -360,8 +336,8 @@ SET(DW_TEST_FILES
     ./storage/lake/lake_persistent_index_fileset_test.cpp
     ./storage/lake/lake_persistent_index_parallel_compact_mgr_test.cpp
     ./storage/lake/lake_persistent_index_size_tiered_compaction_strategy_test.cpp
+    ./storage/lake/load_spill_pipeline_merge_context_test.cpp
     ./storage/lake/tablet_write_log_manager_test.cpp
-    ./storage/load_spill_pipeline_merge_test.cpp
     ./storage/memtable_flush_executor_test.cpp
     ./storage/memtable_test.cpp
     ./storage/metadata_util_test.cpp
@@ -459,7 +435,7 @@ add_library(starrocks_dw_objs OBJECT ${DW_TEST_FILES})
 SET_TARGET_PROPERTIES(starrocks_dw_objs PROPERTIES COMPILE_FLAGS "-fno-access-control")
 target_link_libraries(starrocks_dw_objs PRIVATE StarRocksPCH)
 add_executable(starrocks_dw_test test_main.cpp $<TARGET_OBJECTS:starrocks_dw_objs> ${TEST_EXTRA_SOURCES})
-TARGET_LINK_LIBRARIES(starrocks_dw_test ${TEST_LINK_LIBS})
+TARGET_LINK_LIBRARIES(starrocks_dw_test SchemaScannerBuiltin ${TEST_LINK_LIBS})
 STARROCKS_FORCE_LOAD_LIBS(starrocks_dw_test ${EXPR_FORCE_LOAD_LIBS})
 
 

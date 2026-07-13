@@ -19,7 +19,11 @@ set(EXECUTABLE_OUTPUT_PATH "${BUILD_DIR}/src/storage_primitive")
 
 ADD_BE_LIB(StoragePrimitive
     aggregate_type.cpp
+    aggregate_iterator.cpp
+    chunk_aggregator.cpp
     chunk_iterator.cpp
+    column_aggregate_func.cpp
+    merge_iterator.cpp
     column_and_predicate.cpp
     column_expr_predicate.cpp
     column_in_predicate.cpp
@@ -37,9 +41,12 @@ ADD_BE_LIB(StoragePrimitive
     flat_json_config.cpp
     key_coder.cpp
     projection_iterator.cpp
+    olap_scan_keys.cpp
     range.cpp
     predicate_parser.cpp
     primary_key_encoder.cpp
+    runtime_filter_predicate.cpp
+    row_source_mask_buffer.cpp
     schema_helper.cpp
     predicate_tree/predicate_tree.cpp
     storage_ids.cpp
@@ -51,8 +58,10 @@ ADD_BE_LIB(StoragePrimitive
 )
 
 target_link_libraries(StoragePrimitive PUBLIC
+    ExecPrimitive
     Expr
     Runtime
+    ColumnSortCore
     ChunkCore
     ColumnCore
     Types

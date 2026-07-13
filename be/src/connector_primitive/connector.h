@@ -18,6 +18,8 @@
 #include <string>
 
 #include "common/logging.h"
+#include "common/statusor.h"
+#include "connector_primitive/connector_sink.h"
 #include "connector_primitive/data_source_provider.h"
 #include "gen_cpp/PlanNodes_types.h"
 
@@ -26,8 +28,6 @@ namespace starrocks {
 class ConnectorScanNode;
 
 namespace connector {
-
-class ConnectorChunkSinkProvider;
 
 enum ConnectorType {
     HIVE = 0,
@@ -40,6 +40,12 @@ enum ConnectorType {
     ICEBERG = 7,
     BENCHMARK = 8,
     CACHE_STATS = 9,
+};
+
+enum class ConnectorSinkProviderType {
+    DATA,
+    DELETE,
+    ROW_DELTA,
 };
 
 class Connector {
@@ -66,18 +72,9 @@ public:
         __builtin_unreachable();
     }
 
-    virtual std::unique_ptr<ConnectorChunkSinkProvider> create_data_sink_provider() const {
+    virtual StatusOr<std::unique_ptr<ConnectorSinkProvider>> create_sink_provider(
+            ConnectorSinkProviderType /*type*/, std::shared_ptr<ConnectorSinkContext> /*context*/) const {
         CHECK(false) << connector_type() << " connector does not implement chunk sink yet";
-        __builtin_unreachable();
-    }
-
-    virtual std::unique_ptr<ConnectorChunkSinkProvider> create_delete_sink_provider() const {
-        CHECK(false) << connector_type() << " connector does not implement chunk sink yet";
-        __builtin_unreachable();
-    }
-
-    virtual std::unique_ptr<ConnectorChunkSinkProvider> create_row_delta_sink_provider() const {
-        CHECK(false) << connector_type() << " connector does not implement row delta sink yet";
         __builtin_unreachable();
     }
 
